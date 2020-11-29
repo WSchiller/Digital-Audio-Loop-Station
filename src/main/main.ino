@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "config.h"
 #include <Audio.h>
 #include <Wire.h>
@@ -303,13 +304,13 @@ void continueLoop() {
     playSdRaw1.play(filelist[0]);
   }
   if(!playSdRaw2.isPlaying() && loopTrack[1] == 1) {
-    playSdRaw1.play(filelist[1]);
+    playSdRaw2.play(filelist[1]);
   }
   if(!playSdRaw3.isPlaying() && loopTrack[2] == 1) {
-    playSdRaw1.play(filelist[2]);
+    playSdRaw3.play(filelist[2]);
   }
   if(!playSdRaw4.isPlaying() && loopTrack[3] == 1) {
-    playSdRaw1.play(filelist[3]);
+    playSdRaw4.play(filelist[3]);
   }
 }
 
@@ -324,7 +325,7 @@ void nextTrack() {
 void prevTrack() {
   Serial.println("prevTrack");
   curTrack -= 1;
-  if(curTrack <= 0) {
+  if(curTrack <= -1) {
     curTrack = 3;
   }
 }
