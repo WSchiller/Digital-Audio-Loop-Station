@@ -19,7 +19,6 @@
 #define SDCARD_SCK_PIN   14
 
 // GUItool: begin automatically generated code
-// AudioPlaySdWav           playSdWav1;     //xy=226,240
 AudioPlaySdRaw           playSdRaw3;     //xy=215,327
 AudioPlaySdRaw           playSdRaw2;     //xy=234,268
 AudioPlaySdRaw           playSdRaw1;     //xy=236,216
@@ -50,6 +49,10 @@ Bounce buttonSelectLoop = Bounce(8, 15);
 Bounce buttonLoop = Bounce(21, 15);
 Bounce buttonPrev = Bounce(34, 15);
 Bounce buttonNext = Bounce(39, 15);
+Bounce buttonOffset = Bounce(4, 15);
+Bounce buttonCombine = Bounce(32, 15);
+Bounce buttonPlayMix = Bounce(25, 15);
+
 
 // comment out whichever is not in use
 // const int myInput = AUDIO_INPUT_LINEIN;
@@ -87,19 +90,28 @@ void selectLoop();
 void selectTrack();
 void deselectLoop();
 void deselectTrack();
+void offsetTrack();
+void playMix();
 
 const int NUM_TRACKS = 4;
 int filenumber = 0;
 int curLoop, curTrack = 0;
 int loopNum[5] = {0, 0, 0, 0, 0};
-int trackNum[4] = {0, 0, 0, 0}; 
-const char * filelist[5][4] = {
+int trackNum[4] = {0, 0, 0, 0};
+int minutes = 0, seconds = 0;
+int duration = 0, startTime = millis(), currentTime = 0;
+boolean isPlayback = false, isCombine = false;
+ 
+const char* filelist[5][4] = {
   {"RECORD1.RAW", "RECORD2.RAW", "RECORD3.RAW", "RECORD4.RAW"},
   {"RECORD5.RAW", "RECORD6.RAW", "RECORD7.RAW", "RECORD8.RAW"},
   {"RECORD9.RAW", "RECORD10.RAW", "RECORD11.RAW", "RECORD12.RAW"},
   {"RECORD13.RAW", "RECORD14.RAW", "RECORD15.RAW", "RECORD16.RAW"},
   {"RECORD17.RAW", "RECORD18.RAW", "RECORD19.RAW", "RECORD20.RAW"}
 };
+
+const char* tempFile = "TEMP.RAW";
+
 
 #ifdef LCD2004
   void updateLCD(int mode, String filename="") {
@@ -109,10 +121,22 @@ const char * filelist[5][4] = {
         lcd.print("Recording...");
         break;
       case 2:
+        lcd.clear();
         lcd.setCursor(0, 0);
         lcd.print("Playing Track");
         lcd.setCursor(0, 1);
         lcd.print(filename);
+        lcd.setCursor(0, 3);
+        lcd.print("Track Length: ");
+        lcd.print(minutes);
+        lcd.print(":");
+        if(seconds < 10) {
+          lcd.print("0");
+          lcd.print(seconds);
+        }
+        else {
+          lcd.print(seconds);
+        } 
         break;
       case 3:
         lcd.clear();
@@ -163,6 +187,7 @@ void setup() {
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.5);
+  sgtl5000_1.micGain(60);
   SPI.setMOSI(SDCARD_MOSI_PIN);
   SPI.setSCK(SDCARD_SCK_PIN);
   if (!(SD.begin(SDCARD_CS_PIN))) {
@@ -177,9 +202,12 @@ void setup() {
   pinMode(0, INPUT_PULLUP); // record
   pinMode(1, INPUT_PULLUP); // stop (recording, playing, and looping)
   pinMode(2, INPUT_PULLUP); // play track
+  pinMode(4, INPUT_PULLUP); // offset track
   pinMode(8, INPUT_PULLUP); // select loop
   pinMode(27, INPUT_PULLUP); // select track
   pinMode(21, INPUT_PULLUP); // play loop
+  pinMode(25, INPUT_PULLUP); // play mix
+  pinMode(32, INPUT_PULLUP); // play mix
   pinMode(34, INPUT_PULLUP); // next
   pinMode(39, INPUT_PULLUP); // prev
   pinMode(recLed, OUTPUT);
@@ -193,6 +221,9 @@ void setup() {
     lcd.print(curLoop + 1);
   #endif
 
+  // Mix music
+  mixer1.gain(0, 0.5);
+  mixer1.gain(1, 0.5);
   delay(500);
 }
 
@@ -205,6 +236,9 @@ void loop() {
   buttonLoop.update();
   buttonNext.update();
   buttonPrev.update();
+  buttonOffset.update();
+  buttonPlayMix.update();
+  buttonCombine.update();
 
   // Respond to button presses
   if (buttonRecord.fallingEdge()) {
@@ -222,6 +256,7 @@ void loop() {
     Serial.println("Play Button Press");
     if (mode == 1) stopRecording();
     if (mode == 0 && trackNum[curTrack] == 1) startPlaying();
+    Serial.println(mode);
   }
   if (buttonSelectLoop.fallingEdge()) {
     if (loopNum[curLoop] == 0) {
@@ -264,8 +299,28 @@ void loop() {
       prevLoop();
     }
   }
+  if (buttonOffset.fallingEdge()) {
+    Serial.println("Offset Button Press");
+    if (mode == 0 && trackNum[curTrack] == 1) {
+      offsetTrack(); 
+    }
+  }
+  if (buttonPlayMix.fallingEdge()) {
+      Serial.println("Play Mix Button Press");
+      if (mode == 0 && trackNum[curTrack] == 1) {
+          playMix();
+      }
+  }
+  if (buttonCombine.fallingEdge()) {
+      Serial.println("Combine two tracks button press");
+     if (mode == 0 && trackNum[curTrack] == 1) {
+          isCombine = true;
+          startRecording();
+      }
+  }
+  
   #ifdef LCD2004
-    if (buttonRecord.fallingEdge() || buttonStop.fallingEdge() || buttonPlay.fallingEdge() || buttonLoop.fallingEdge() || buttonNext.fallingEdge() || buttonPrev.fallingEdge() || buttonSelectLoop.fallingEdge() || buttonSelectTrack.fallingEdge()){ updateLCD(mode, filelist[curLoop][curTrack]); };
+    if (buttonRecord.fallingEdge() || buttonStop.fallingEdge() || buttonPlay.fallingEdge() || buttonLoop.fallingEdge() || buttonNext.fallingEdge() || buttonPrev.fallingEdge() || buttonSelectLoop.fallingEdge() || buttonSelectTrack.fallingEdge() || buttonPlayMix.fallingEdge() || buttonOffset.fallingEdge() || buttonCombine.fallingEdge()){ updateLCD(mode, filelist[curLoop][curTrack]); };
   #endif
 
   // If we're playing or recording, carry on...
@@ -273,7 +328,25 @@ void loop() {
     continueRecording();
   }
   if (mode == 2) {
-    continuePlaying();
+    if(!isPlayback) {
+     currentTime = millis();
+     duration = (currentTime - startTime) / 1000;
+     int mins = duration / 60;
+     int sec = duration % 60;
+     lcd.setCursor(0, 2);
+     lcd.print("Track Time: ");
+     lcd.print(mins);
+     lcd.print(":");
+     if(seconds < 10) {
+      lcd.print("0");
+      lcd.print(sec);
+     }
+     else {
+      lcd.print(sec);
+     }
+     delay(100);
+    }
+     continuePlaying();
   }
   if (mode == 3) {
     continueLoop();
@@ -283,35 +356,33 @@ void loop() {
   }
   
   // volume knob
-  int knob = analogRead(A2);
+  int knob = analogRead(A22);
   float vol = (float)knob / 1280.0;
   sgtl5000_1.volume(vol);
 }
-
-// void getTracks(File dir) {
-//   int idx = 0;
-//   while(true){
-//     File entry = dir.openNextFile();
-//     if(!entry) {break;}
-//     // need to change "cppStandard" to "gnu++17"
-//     tracks[idx] = strdup(entry.name());
-//     entry.close();
-//     idx++;
-//   }
-// }
 
 void startRecording() {
   Serial.println("startRecording");
   #ifdef RECORD_LED
     digitalWrite(recLed, HIGH);
   #endif
-  if (SD.exists(filelist[curLoop][curTrack])) {
-    SD.remove(filelist[curLoop][curTrack]);
+
+  if (isCombine) {
+    frec = SD.open(tempFile, FILE_WRITE);
+    if (frec) {
+      queue1.begin();
+      mode = 1;
+    }
   }
-  frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
-  if (frec) {
-    queue1.begin();
-    mode = 1;
+  else {
+    if (SD.exists(filelist[curLoop][curTrack])) {
+      SD.remove(filelist[curLoop][curTrack]);
+    }
+    frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
+    if (frec) {
+      queue1.begin();
+      mode = 1;
+    }
   }
 }
 
@@ -340,21 +411,37 @@ void stopRecording() {
     frec.close();
   }
 
+  if(isCombine) {
+    combineFiles();
+    isCombine = false;
+  }
+  
   mode = 4;
 }
 
 void startPlaying() {
   if(mode == 4) {
     Serial.println("Playback");
+    isPlayback = true;
   }
   else {
     Serial.println("Start Playing");
+    isPlayback = false;
   }
   #ifdef PLAY_LED
     digitalWrite(playLed, HIGH);
   #endif
   playSdRaw1.play(filelist[curLoop][curTrack]);
+  startTime = millis();
   mode = 2;
+  int trackLength = (int)playSdRaw1.lengthMillis();
+  minutes = trackLength / 1000 / 60;
+  seconds = trackLength / 1000 % 60;
+  Serial.print("Track Length: ");
+  Serial.print(minutes);
+  Serial.print(" minutes ");
+  Serial.print(seconds);
+  Serial.println(" seconds"); 
 }
 
 void continuePlaying() {
@@ -490,4 +577,100 @@ void deselectLoop() {
     trackNum[i] = 0;
   }
   loopNum[curLoop] = 0;
+}
+
+void offsetTrack() {
+  // Read recording
+  // Seek to user selected offset position
+  double randnum = .25;
+  frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
+  if (frec) {
+    Serial.print("Offseting Track by ");
+    Serial.print(randnum);
+    Serial.println("% percent");
+    frec.seek(frec.size() /2);
+    Serial.print(frec.position());
+
+    // Clear tempFile if data for writing
+    if (SD.exists(tempFile)) {
+      SD.remove(tempFile);
+    }
+
+    // Write offset to temp file
+    File data = SD.open(tempFile, FILE_WRITE);
+    Serial.println("Writing Offset to temp file");
+    while(frec.available() >= 2) {
+        Serial.println(frec.position());
+        byte buffer[512];
+        frec.read(buffer, 512);
+        data.write(buffer, 512);
+        memset(buffer, 0, sizeof(buffer)); //clear buffer
+        Serial.println(data.position());
+      }
+      
+    // read offset from temp and write offset back to current track
+    Serial.println("Writing offset back to current track");
+    if (SD.exists(filelist[curLoop][curTrack])) {
+      SD.remove(filelist[curLoop][curTrack]);
+    }
+    frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
+    
+    //frec.seek(0);
+    data.seek(0);
+    while(data.available() >= 2) {
+      Serial.println(data.position());
+      byte buffer[512];
+      data.read(buffer, 512);
+      frec.write(buffer, 512);
+      memset(buffer, 0, sizeof(buffer)); //clear buffer
+      Serial.println(frec.position());
+    }
+    Serial.println(data.size());
+  }
+  
+  Serial.println(frec.size());
+}
+
+void playMix() {
+  Serial.println("Playing Mix");
+  if (playSdRaw1.isPlaying() == false) {
+    Serial.println("Start playing Raw1");
+    playSdRaw1.play(filelist[curLoop][0]);
+    delay(10); // wait for library to parse RAW info
+  }
+  if (playSdRaw2.isPlaying() == false) {
+    Serial.println("Start playing Raw2");
+    playSdRaw2.play(filelist[curLoop][1]);
+    delay(10); // wait for library to parse RAW info
+  }
+  if (playSdRaw3.isPlaying() == false) {
+    Serial.println("Start playing Raw3");
+    playSdRaw3.play(filelist[curLoop][2]);
+    delay(10); // wait for library to parse RAW info
+  }
+  if (playSdRaw4.isPlaying() == false) {
+    Serial.println("Start playing Raw4");
+    playSdRaw4.play(filelist[curLoop][3]);
+    delay(10); // wait for library to parse RAW info
+  }
+
+  mode = 2;
+}
+
+void combineFiles() {
+  frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
+  if (frec) {
+    //frec.seek(frec.size()); //seek to end of file
+    File data = SD.open("TEMP.RAW");
+    if(data) {
+      while(data.available() >= 2) {
+        byte buffer[512];
+        data.read(buffer, 512);
+        frec.write(buffer, 512);
+        memset(buffer, 0, sizeof(buffer)); //clear buffer
+      }
+    }
+    data.close();
+  }
+  frec.close();
 }
