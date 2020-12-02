@@ -6,4 +6,6 @@
 // comment out if not using LED
 #define RECORD_LED
 
+#define PLAY_LED
+
 #define DEBUG
