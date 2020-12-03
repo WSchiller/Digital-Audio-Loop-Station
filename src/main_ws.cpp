@@ -18,6 +18,10 @@
 #define SDCARD_MOSI_PIN  7
 #define SDCARD_SCK_PIN   14
 
+// Granular Pitch Shifting
+#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
+int16_t granularMemory[GRANULAR_MEMORY_SIZE];
+
 // GUItool: begin automatically generated code
 AudioEffectGranular      granular1;      //xy=504,155
 AudioPlaySdRaw           playSdRaw3;     //xy=215,327
@@ -74,10 +78,6 @@ int mode = 0;
   int playLed = 24;
 #endif
 
-// Granular Pitch Shifting
-#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
-int16_t granularMemory[GRANULAR_MEMORY_SIZE];
-
 // prototype
 // void getTracks(File);
 void startPlaying();
@@ -98,6 +98,7 @@ void deselectLoop();
 void deselectTrack();
 void offsetTrack();
 void playMix();
+void combineFiles();
 // void buttonPressed();
 
 const int NUM_TRACKS = 4;
@@ -191,6 +192,7 @@ const char* tempFile = "TEMP.RAW";
 void setup() {
   Serial.begin(9600);
   AudioMemory(8);
+  granular1.begin(granularMemory, GRANULAR_MEMORY_SIZE);
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.5);
@@ -222,7 +224,9 @@ void setup() {
   pinMode(playLed, OUTPUT);
 
   #ifdef LCD2004
-    lcd.begin();
+    // lcd.begin();
+    lcd.init();
+    lcd.backlight();
     lcd.print("Current Loop:");
     lcd.setCursor(0, 1);
     lcd.print("Loop #");
@@ -329,9 +333,13 @@ void loop() {
   }
   if (buttonShift.fallingEdge()) {
     if(shiftActive == false){
+      Serial.println("Shifting started");
       granular1.beginPitchShift(250); // shifts the pitch of 250 msec at a time
     }
-    else{ granular1.stop();}
+    else{ 
+      granular1.stop();
+      Serial.println("Shifting stopped");  
+    }
     shiftActive = !shiftActive;
   }
   
