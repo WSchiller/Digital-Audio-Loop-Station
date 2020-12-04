@@ -18,10 +18,6 @@
 #define SDCARD_MOSI_PIN  7
 #define SDCARD_SCK_PIN   14
 
-// Granular Pitch Shifting
-#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
-int16_t granularMemory[GRANULAR_MEMORY_SIZE];
-
 // GUItool: begin automatically generated code
 AudioEffectGranular      granular1;      //xy=504,155
 AudioPlaySdRaw           playSdRaw3;     //xy=215,327
@@ -39,10 +35,9 @@ AudioConnection          patchCord2(playSdRaw2, 0, mixer1, 1);
 AudioConnection          patchCord3(playSdRaw1, 0, mixer1, 0);
 AudioConnection          patchCord4(playSdRaw4, 0, mixer1, 3);
 AudioConnection          patchCord5(i2s1, 0, queue1, 0);
-// AudioConnection          patchCord6(i2s1, 0, peak1, 0);
-AudioConnection          patchCord7(mixer1, granular1);
-AudioConnection          patchCord8(granular1, 0, i2s2, 1);
-AudioConnection          patchCord9(granular1, 0, i2s2, 1);
+AudioConnection          patchCord6(i2s1, 0, peak1, 0);
+AudioConnection          patchCord7(mixer1, 0, i2s2, 0);
+AudioConnection          patchCord8(mixer1, 0, i2s2, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=782,276
 // GUItool: end automatically generated code
 
@@ -78,6 +73,10 @@ int mode = 0;
   int playLed = 24;
 #endif
 
+// Granular Pitch Shifting
+#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
+int16_t granularMemory[GRANULAR_MEMORY_SIZE];
+
 // prototype
 // void getTracks(File);
 void startPlaying();
@@ -98,7 +97,6 @@ void deselectLoop();
 void deselectTrack();
 void offsetTrack();
 void playMix();
-void combineFiles();
 // void buttonPressed();
 
 const int NUM_TRACKS = 4;
@@ -192,7 +190,6 @@ const char* tempFile = "TEMP.RAW";
 void setup() {
   Serial.begin(9600);
   AudioMemory(8);
-  granular1.begin(granularMemory, GRANULAR_MEMORY_SIZE);
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.5);
@@ -224,9 +221,7 @@ void setup() {
   pinMode(playLed, OUTPUT);
 
   #ifdef LCD2004
-    // lcd.begin();
-    lcd.init();
-    lcd.backlight();
+    lcd.begin();
     lcd.print("Current Loop:");
     lcd.setCursor(0, 1);
     lcd.print("Loop #");
@@ -257,7 +252,7 @@ void loop() {
   if (buttonRecord.fallingEdge()) {
     Serial.println("Record Button Press");
     if (mode == 2) stopPlaying();
-    if (mode == 0 && trackNum[curTrack] == 1) startRecording();
+    if (mode ==  0 && trackNum[curTrack] == 1) startRecording();
   }
   if (buttonStop.fallingEdge()) {
     Serial.println("Stop Button Press");
@@ -333,13 +328,9 @@ void loop() {
   }
   if (buttonShift.fallingEdge()) {
     if(shiftActive == false){
-      Serial.println("Shifting started");
       granular1.beginPitchShift(250); // shifts the pitch of 250 msec at a time
     }
-    else{ 
-      granular1.stop();
-      Serial.println("Shifting stopped");  
-    }
+    else{ granular1.stop();}
     shiftActive = !shiftActive;
   }
   
@@ -640,6 +631,8 @@ void offsetTrack() {
         memset(buffer, 0, sizeof(buffer)); //clear buffer
         Serial.println(data.position());
       }
+
+      frec.close();
       
     // read offset from temp and write offset back to current track
     Serial.println("Writing offset back to current track");
@@ -658,6 +651,8 @@ void offsetTrack() {
       memset(buffer, 0, sizeof(buffer)); //clear buffer
       Serial.println(frec.position());
     }
+    frec.close();
+    data.close();
     Serial.println(data.size());
   }
   
