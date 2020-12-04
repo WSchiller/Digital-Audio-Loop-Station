@@ -18,6 +18,10 @@
 #define SDCARD_MOSI_PIN  7
 #define SDCARD_SCK_PIN   14
 
+// Granular Pitch Shifting
+#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
+int16_t granularMemory[GRANULAR_MEMORY_SIZE];
+
 // GUItool: begin automatically generated code
 AudioEffectGranular      granular1;      //xy=504,155
 AudioPlaySdRaw           playSdRaw3;     //xy=215,327
@@ -35,9 +39,10 @@ AudioConnection          patchCord2(playSdRaw2, 0, mixer1, 1);
 AudioConnection          patchCord3(playSdRaw1, 0, mixer1, 0);
 AudioConnection          patchCord4(playSdRaw4, 0, mixer1, 3);
 AudioConnection          patchCord5(i2s1, 0, queue1, 0);
-AudioConnection          patchCord6(i2s1, 0, peak1, 0);
-AudioConnection          patchCord7(mixer1, 0, i2s2, 0);
-AudioConnection          patchCord8(mixer1, 0, i2s2, 1);
+// AudioConnection          patchCord6(i2s1, 0, peak1, 0);
+AudioConnection          patchCord7(mixer1, granular1);
+AudioConnection          patchCord8(granular1, 0, i2s2, 1);
+AudioConnection          patchCord9(granular1, 0, i2s2, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=782,276
 // GUItool: end automatically generated code
 
@@ -72,10 +77,6 @@ int mode = 0;
 #ifdef PLAY_LED
   int playLed = 24;
 #endif
-
-// Granular Pitch Shifting
-#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
-int16_t granularMemory[GRANULAR_MEMORY_SIZE];
 
 // prototype
 // void getTracks(File);
@@ -190,6 +191,7 @@ const char* tempFile = "TEMP.RAW";
 void setup() {
   Serial.begin(9600);
   AudioMemory(8);
+  granular1.begin(granularMemory, GRANULAR_MEMORY_SIZE);
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.5);
@@ -329,8 +331,9 @@ void loop() {
   if (buttonShift.fallingEdge()) {
     if(shiftActive == false){
       granular1.beginPitchShift(250); // shifts the pitch of 250 msec at a time
+      Serial.println("Shift started");
     }
-    else{ granular1.stop();}
+    else{ granular1.stop(); Serial.println("Shift stopped"); }
     shiftActive = !shiftActive;
   }
   
