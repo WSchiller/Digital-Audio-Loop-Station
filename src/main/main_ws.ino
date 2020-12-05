@@ -213,7 +213,7 @@ void setup() {
   pinMode(27, INPUT_PULLUP); // select track
   pinMode(21, INPUT_PULLUP); // play loop
   pinMode(25, INPUT_PULLUP); // play mix
-  pinMode(32, INPUT_PULLUP); // play mix
+  pinMode(32, INPUT_PULLUP); // combine
   pinMode(35, INPUT_PULLUP); // pitch shift
   pinMode(34, INPUT_PULLUP); // next
   pinMode(39, INPUT_PULLUP); // prev
@@ -392,6 +392,9 @@ void startRecording() {
   #endif
 
   if (isCombine) {
+    if (SD.exists(tempFile)) {
+      SD.remove(tempFile);
+    }
     frec = SD.open(tempFile, FILE_WRITE);
     if (frec) {
       queue1.begin();
@@ -539,39 +542,44 @@ void continueLoop() {
 }
 
 void nextTrack() {
-    Serial.println("nextTrack");
     curTrack += 1;
     if(curTrack >= 4) {
       curTrack = 0;
     }
+    Serial.print("Track Number #");
+    Serial.println(curTrack + 1);
 }
 
 void nextLoop() {
   if(loopNum[curLoop] == 0 ) {
-    Serial.println("nextLoop");
     curLoop += 1;
     if(curLoop >= 5) {
       curLoop = 0;
     }
   }
+  Serial.print("Loop Number #");
+  Serial.println(curLoop + 1);
 }
 
 void prevTrack() {
-    Serial.println("prevTrack");
     curTrack -= 1;
     if(curTrack <= -1) {
       curTrack = 3;
     }
+
+    Serial.print("Track Number #");
+    Serial.println(curTrack + 1);
 }
 
 void prevLoop() {
   if(loopNum[curLoop] == 0 ) {
-    Serial.println("prevLoop");
     curLoop -= 1;
     if(curLoop <= -1) {
       curLoop = 4;
     }
   }
+  Serial.print("Loop Number #");
+  Serial.println(curLoop + 1);
 }
 
 void selectLoop() {
@@ -688,8 +696,7 @@ void playMix() {
 void combineFiles() {
   frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
   if (frec) {
-    //frec.seek(frec.size()); //seek to end of file
-    File data = SD.open("TEMP.RAW");
+    File data = SD.open(tempFile);
     if(data) {
       while(data.available() >= 2) {
         byte buffer[512];
@@ -702,18 +709,3 @@ void combineFiles() {
   }
   frec.close();
 }
-
-// bool buttonPressed() {
-//   if(buttonRecord.fallingEdge()) { return true; }
-//   if(buttonStop.fallingEdge()) { return true; }
-//   if(buttonPlay.fallingEdge()) { return true; }
-//   if(buttonSelectTrack.fallingEdge()) { return true; }
-//   if(buttonSelectLoop.fallingEdge()) { return true; }
-//   if(buttonLoop.fallingEdge()) { return true; }
-//   if(buttonPrev.fallingEdge()) { return true; }
-//   if(buttonNext.fallingEdge()) { return true; }
-//   if(buttonOffset.fallingEdge()) { return true; }
-//   if(buttonCombine.fallingEdge()) { return true; }
-//   if(buttonPlayMix.fallingEdge()) { return true; }
-//   return false;
-// }
