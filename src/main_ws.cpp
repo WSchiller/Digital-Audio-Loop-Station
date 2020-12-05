@@ -18,10 +18,6 @@
 #define SDCARD_MOSI_PIN  7
 #define SDCARD_SCK_PIN   14
 
-// Granular Pitch Shifting
-#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
-int16_t granularMemory[GRANULAR_MEMORY_SIZE];
-
 // GUItool: begin automatically generated code
 AudioEffectGranular      granular1;      //xy=504,155
 AudioPlaySdRaw           playSdRaw3;     //xy=215,327
@@ -39,10 +35,9 @@ AudioConnection          patchCord2(playSdRaw2, 0, mixer1, 1);
 AudioConnection          patchCord3(playSdRaw1, 0, mixer1, 0);
 AudioConnection          patchCord4(playSdRaw4, 0, mixer1, 3);
 AudioConnection          patchCord5(i2s1, 0, queue1, 0);
-// AudioConnection          patchCord6(i2s1, 0, peak1, 0);
-AudioConnection          patchCord7(mixer1, granular1);
-AudioConnection          patchCord8(granular1, 0, i2s2, 1);
-AudioConnection          patchCord9(granular1, 0, i2s2, 1);
+AudioConnection          patchCord6(i2s1, 0, peak1, 0);
+AudioConnection          patchCord7(mixer1, 0, i2s2, 0);
+AudioConnection          patchCord8(mixer1, 0, i2s2, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=782,276
 // GUItool: end automatically generated code
 
@@ -77,6 +72,10 @@ int mode = 0;
 #ifdef PLAY_LED
   int playLed = 24;
 #endif
+
+// Granular Pitch Shifting
+#define GRANULAR_MEMORY_SIZE 12800  // enough for 290 ms at 44.1 kHz
+int16_t granularMemory[GRANULAR_MEMORY_SIZE];
 
 // prototype
 // void getTracks(File);
@@ -191,7 +190,6 @@ const char* tempFile = "TEMP.RAW";
 void setup() {
   Serial.begin(9600);
   AudioMemory(8);
-  granular1.begin(granularMemory, GRANULAR_MEMORY_SIZE);
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.5);
@@ -215,7 +213,7 @@ void setup() {
   pinMode(27, INPUT_PULLUP); // select track
   pinMode(21, INPUT_PULLUP); // play loop
   pinMode(25, INPUT_PULLUP); // play mix
-  pinMode(32, INPUT_PULLUP); // play mix
+  pinMode(32, INPUT_PULLUP); // combine
   pinMode(35, INPUT_PULLUP); // pitch shift
   pinMode(34, INPUT_PULLUP); // next
   pinMode(39, INPUT_PULLUP); // prev
@@ -331,9 +329,8 @@ void loop() {
   if (buttonShift.fallingEdge()) {
     if(shiftActive == false){
       granular1.beginPitchShift(250); // shifts the pitch of 250 msec at a time
-      Serial.println("Shift started");
     }
-    else{ granular1.stop(); Serial.println("Shift stopped"); }
+    else{ granular1.stop();}
     shiftActive = !shiftActive;
   }
   
@@ -395,6 +392,9 @@ void startRecording() {
   #endif
 
   if (isCombine) {
+    if (SD.exists(tempFile)) {
+      SD.remove(tempFile);
+    }
     frec = SD.open(tempFile, FILE_WRITE);
     if (frec) {
       queue1.begin();
@@ -542,39 +542,44 @@ void continueLoop() {
 }
 
 void nextTrack() {
-    Serial.println("nextTrack");
     curTrack += 1;
     if(curTrack >= 4) {
       curTrack = 0;
     }
+    Serial.print("Track Number #");
+    Serial.println(curTrack + 1);
 }
 
 void nextLoop() {
   if(loopNum[curLoop] == 0 ) {
-    Serial.println("nextLoop");
     curLoop += 1;
     if(curLoop >= 5) {
       curLoop = 0;
     }
   }
+  Serial.print("Loop Number #");
+  Serial.println(curLoop + 1);
 }
 
 void prevTrack() {
-    Serial.println("prevTrack");
     curTrack -= 1;
     if(curTrack <= -1) {
       curTrack = 3;
     }
+
+    Serial.print("Track Number #");
+    Serial.println(curTrack + 1);
 }
 
 void prevLoop() {
   if(loopNum[curLoop] == 0 ) {
-    Serial.println("prevLoop");
     curLoop -= 1;
     if(curLoop <= -1) {
       curLoop = 4;
     }
   }
+  Serial.print("Loop Number #");
+  Serial.println(curLoop + 1);
 }
 
 void selectLoop() {
@@ -691,8 +696,7 @@ void playMix() {
 void combineFiles() {
   frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
   if (frec) {
-    //frec.seek(frec.size()); //seek to end of file
-    File data = SD.open("TEMP.RAW");
+    File data = SD.open(tempFile);
     if(data) {
       while(data.available() >= 2) {
         byte buffer[512];
@@ -705,18 +709,3 @@ void combineFiles() {
   }
   frec.close();
 }
-
-// bool buttonPressed() {
-//   if(buttonRecord.fallingEdge()) { return true; }
-//   if(buttonStop.fallingEdge()) { return true; }
-//   if(buttonPlay.fallingEdge()) { return true; }
-//   if(buttonSelectTrack.fallingEdge()) { return true; }
-//   if(buttonSelectLoop.fallingEdge()) { return true; }
-//   if(buttonLoop.fallingEdge()) { return true; }
-//   if(buttonPrev.fallingEdge()) { return true; }
-//   if(buttonNext.fallingEdge()) { return true; }
-//   if(buttonOffset.fallingEdge()) { return true; }
-//   if(buttonCombine.fallingEdge()) { return true; }
-//   if(buttonPlayMix.fallingEdge()) { return true; }
-//   return false;
-// }
