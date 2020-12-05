@@ -614,13 +614,13 @@ void deselectLoop() {
 void offsetTrack() {
   // Read recording
   // Seek to user selected offset position
-  double randnum = .25;
+  //double randnum = .25;
   frec = SD.open(filelist[curLoop][curTrack], FILE_WRITE);
   if (frec) {
+    frec.seek(0);
     Serial.print("Offseting Track by ");
-    Serial.print(randnum);
     Serial.println("% percent");
-    frec.seek(frec.size() /2);
+    frec.seek(frec.size() / 4);
     Serial.print(frec.position());
 
     // Clear tempFile if data for writing
